@@ -48,13 +48,13 @@ function App() {
   const checkServiceStatus = async () => {
     try {
       // Check backend health with shorter timeout
-      const backendResponse = await axios.get('/api/admin/health', { timeout: 2000 });
+      const backendResponse = await axios.get('/api/admin/health', { timeout: 5000 });
       
       // If we get a response, backend is online - regardless of the status content
       // The response itself indicates the backend service is responding
       const backendHealthy = !!backendResponse.data && backendResponse.status === 200;
       
-      console.log('Backend health check:', {
+      console.log('✅ Backend health check successful:', {
         response: backendResponse.data,
         backendHealthy,
         database: backendResponse.data.database,
@@ -69,7 +69,22 @@ function App() {
         backendOverloaded: backendResponse.data.backendOverloaded || false
       }));
     } catch (err) {
-      console.error('Failed to check service status:', err);
+      console.error('❌ Failed to check service status:', {
+        message: err.message,
+        code: err.code,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        url: '/api/admin/health'
+      });
+      
+      // Add user notification for debugging
+      if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK') {
+        console.error('🔧 Network connection failed - this usually means:');
+        console.error('   1. Backend service is not running');
+        console.error('   2. Frontend proxy configuration is incorrect');
+        console.error('   3. Docker network connectivity issue');
+      }
+      
       setServiceStatus({
         backend: false,
         database: false,
@@ -340,12 +355,26 @@ function App() {
   useEffect(() => {
     const initializeApp = async () => {
       setLoading(true);
+      console.log('🚀 Initializing Movie Analyzer App...');
+      
+      // Set a maximum initialization timeout to prevent infinite loading
+      const initTimeout = setTimeout(() => {
+        console.warn('⚠️ App initialization taking longer than expected, showing UI anyway...');
+        setLoading(false);
+      }, 10000); // 10 second maximum wait
       
       try {
         // Check service status first (quick)
-        await checkServiceStatus();
+        console.log('🔍 Checking service status...');
+        await Promise.race([
+          checkServiceStatus(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Health check timeout')), 8000)
+          )
+        ]);
+        console.log('✅ Service status check completed');
       } catch (error) {
-        console.error('Failed to check service status during initialization:', error);
+        console.error('❌ Failed to check service status during initialization:', error);
         // Set default offline state if health check fails
         setServiceStatus({
           backend: false,
@@ -353,23 +382,28 @@ function App() {
           model: false,
           backendOverloaded: false
         });
+        
+        // Show helpful message to user
+        addNotification('⚠️ Backend services not responding - some features may be limited', 'warning');
       }
       
-      // Always show movies - don't let health check failures block the UI
+      // Clear the timeout and show the UI
+      clearTimeout(initTimeout);
       setLoading(false);
+      console.log('✅ App initialization completed, showing UI');
       
       // Load reviews in background (can be slow due to database being down)
       loadReviews().then(() => {
-        console.log('Reviews loaded in background');
+        console.log('📚 Reviews loaded in background');
       }).catch(err => {
-        console.log('Background review loading failed:', err);
+        console.log('❌ Background review loading failed:', err.message);
       });
 
       // Load latest reviews for homepage
       loadLatestReviews().then(() => {
-        console.log('Latest reviews loaded in background');
+        console.log('📈 Latest reviews loaded in background');
       }).catch(err => {
-        console.log('Background latest reviews loading failed:', err);
+        console.log('❌ Background latest reviews loading failed:', err.message);
       });
     };
     

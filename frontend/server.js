@@ -24,6 +24,48 @@ app.use(express.json({ limit: '10kb' })); // Body limit is 10kb
 console.log('🚀 Starting Movie Review Frontend Server');
 console.log(`📡 Backend URL: ${BACKEND_URL}`);
 console.log(`🌐 Frontend Port: ${PORT}`);
+console.log(`🔧 Environment: NODE_ENV=${process.env.NODE_ENV || 'development'}`);
+console.log(`🐳 Running in Docker: ${process.env.NODE_ENV ? 'Yes' : 'Unknown'}`);
+
+// Test backend connectivity on startup
+setTimeout(async () => {
+  try {
+    const http = require('http');
+    const url = require('url');
+    const backendUrl = url.parse(BACKEND_URL);
+    
+    console.log(`🔍 Testing backend connectivity to ${BACKEND_URL}...`);
+    
+    const options = {
+      hostname: backendUrl.hostname,
+      port: backendUrl.port,
+      path: '/actuator/health',
+      method: 'GET',
+      timeout: 5000
+    };
+    
+    const req = http.request(options, (res) => {
+      console.log(`✅ Backend connectivity test: ${res.statusCode} ${res.statusMessage}`);
+    });
+    
+    req.on('error', (err) => {
+      console.error(`❌ Backend connectivity test failed: ${err.message}`);
+      console.error(`   - Target: ${BACKEND_URL}`);
+      console.error(`   - Hostname: ${backendUrl.hostname}`);
+      console.error(`   - Port: ${backendUrl.port}`);
+      console.error(`   - This might cause the loading screen issue!`);
+    });
+    
+    req.on('timeout', () => {
+      console.error(`❌ Backend connectivity test timed out after 5s`);
+      req.destroy();
+    });
+    
+    req.end();
+  } catch (err) {
+    console.error(`❌ Backend connectivity test error: ${err.message}`);
+  }
+}, 2000); // Test after 2 seconds to allow services to start
 
 // Server state for simulation
 let serverHealthy = true;
@@ -158,21 +200,28 @@ app.use('/api', createProxyMiddleware({
   changeOrigin: true,
   timeout: 30000, // 30 second timeout for proxy requests
   proxyTimeout: 30000, // 30 second proxy timeout
-  secure: true, // Enable HTTPS
+  secure: false, // Disable HTTPS for internal Docker communication
   ws: false,
   buffer: false, // Don't buffer request/response
   onError: (err, req, res) => {
     console.error('❌ Proxy Error:', err.message);
+    console.error('❌ Proxy Error Details:', {
+      code: err.code,
+      target: BACKEND_URL,
+      path: req.path
+    });
     if (!res.headersSent) {
       res.status(500).json({
         error: 'Backend service unavailable',
-        message: 'Cannot connect to backend server'
+        message: 'Cannot connect to backend server',
+        target: BACKEND_URL,
+        path: req.path
       });
     }
   },
   onProxyReq: (proxyReq, req, res) => {
-    // Add security headers to proxy requests
-    proxyReq.setHeader('X-Forwarded-Proto', 'https');
+    // Add security headers to proxy requests  
+    proxyReq.setHeader('X-Forwarded-Proto', 'http'); // Use http for internal communication
     proxyReq.setHeader('X-Real-IP', req.ip);
     console.log(`🔄 Proxying: ${req.method} ${req.path} -> ${BACKEND_URL}${req.path}`);
   },
