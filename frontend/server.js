@@ -31,8 +31,9 @@ console.log(`🐳 Running in Docker: ${process.env.NODE_ENV ? 'Yes' : 'Unknown'}
 setTimeout(async () => {
   try {
     const http = require('http');
-    const url = require('url');
-    const backendUrl = url.parse(BACKEND_URL);
+    
+    // Parse URL without deprecated url.parse()
+    const backendUrl = new URL(BACKEND_URL);
     
     console.log(`🔍 Testing backend connectivity to ${BACKEND_URL}...`);
     
@@ -46,6 +47,17 @@ setTimeout(async () => {
     
     const req = http.request(options, (res) => {
       console.log(`✅ Backend connectivity test: ${res.statusCode} ${res.statusMessage}`);
+      
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        try {
+          const health = JSON.parse(data);
+          console.log(`✅ Backend health status: ${health.status || 'unknown'}`);
+        } catch (e) {
+          console.log(`✅ Backend responded but health data not parsed`);
+        }
+      });
     });
     
     req.on('error', (err) => {
@@ -53,7 +65,10 @@ setTimeout(async () => {
       console.error(`   - Target: ${BACKEND_URL}`);
       console.error(`   - Hostname: ${backendUrl.hostname}`);
       console.error(`   - Port: ${backendUrl.port}`);
-      console.error(`   - This might cause the loading screen issue!`);
+      console.error(`   - Error Code: ${err.code}`);
+      console.error(`   - This will cause the loading screen issue!`);
+      console.error(`   - Check if backend container is running: docker-compose ps`);
+      console.error(`   - Check backend logs: docker logs backend`);
     });
     
     req.on('timeout', () => {
@@ -65,7 +80,7 @@ setTimeout(async () => {
   } catch (err) {
     console.error(`❌ Backend connectivity test error: ${err.message}`);
   }
-}, 2000); // Test after 2 seconds to allow services to start
+}, 5000); // Test after 5 seconds to allow backend more time to start
 
 // Server state for simulation
 let serverHealthy = true;
