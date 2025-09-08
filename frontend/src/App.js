@@ -357,6 +357,8 @@ function App() {
       setLoading(true);
       console.log('🚀 Initializing Movie Analyzer App...');
       
+      // Note: Removed debug timeout - fixed HTTPS/security header issues instead
+      
       // Set a maximum initialization timeout to prevent infinite loading
       const initTimeout = setTimeout(() => {
         console.warn('⚠️ App initialization taking longer than expected, showing UI anyway...');

@@ -12,8 +12,15 @@ const PORT = process.env.PORT || 3000;
 // Backend URL for proxying API requests - using BACKEND_API_URL as specified
 const BACKEND_URL = process.env.BACKEND_API_URL || 'http://localhost:8080';
 
-// Security middleware
-app.use(helmet()); // Set security HTTP headers
+// Security middleware - configured for HTTP development
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP that blocks HTTP resources
+  crossOriginOpenerPolicy: false, // Disable COOP that causes issues
+  crossOriginResourcePolicy: false, // Disable CORP that blocks resources
+  originAgentCluster: false, // Disable Origin-Agent-Cluster header
+  strictTransportSecurity: false, // Disable HSTS for HTTP development
+  upgradeInsecureRequests: false // Don't force HTTPS upgrades
+}));
 app.use(cors()); // Enable CORS
 app.use(xss()); // Sanitize data
 app.use(hpp()); // Prevent HTTP Parameter Pollution
